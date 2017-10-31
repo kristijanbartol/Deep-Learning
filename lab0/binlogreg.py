@@ -16,10 +16,6 @@ def sigmoid(x):
     return 1 / (1 + math.exp(-x))
 
 
-def r_sigmoid(x):
-    return 1 / (1 + math.exp(x))
-
-
 def output_binary(X, Y_, w, b):
     scores = np.dot(X, w) + b
     scores_shifted = scores - np.max(scores)
@@ -70,9 +66,9 @@ def binlogreg_classify(X, w, b):
     return [sigmoid(scores_shifted[i]) for i in range(X.shape[0])]
 
 
-def binlogreg_decfun(Y_, w, b):
+def binlogreg_decfun(w, b):
     def classify(X):
-      return binlogreg_classify(X, Y_, w, b)
+      return binlogreg_classify(X, w, b)
     return classify
 
 
@@ -95,12 +91,12 @@ if __name__=="__main__":
     print(accuracy, recall, precision, AP)
 
     # graph the decision surface
-    decfun = binlogreg_decfun(Y_, w, b)
+    decfun = binlogreg_decfun(w, b)
     bbox = (np.min(X, axis=0), np.max(X, axis=0))
     data.graph_surface(decfun, bbox, offset=0.5)
 
     # graph the data points
-    data.graph_data(X, Y_, Y, special=[])
+    #data.graph_data(X, Y_, Y, special=[])
 
     # show the plot
     plt.show()

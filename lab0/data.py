@@ -55,8 +55,6 @@ def graph_surface(function, rect, offset=0.5, width=256, height=256):
     xx0, xx1 = np.meshgrid(lsh, lsw)
     grid = np.stack((xx0.flatten(), xx1.flatten()), axis=1)
 
-    print(grid.shape)
-
     # get the values and reshape them
     values = function(grid).reshape((width, height))
 
@@ -153,7 +151,7 @@ def eval_AP(ranked_labels):
     fp = neg
 
     sumprec = 0
-    # IPython.embed()
+
     for x in ranked_labels:
         precision = tp / (tp + fp)
 
@@ -196,7 +194,7 @@ def sample_gmm(ncomponents, nclasses, nsamples):
 
     # sample the dataset
     X = np.vstack([G.get_sample(nsamples) for G in Gs])
-    Y_ = np.hstack([[Y] * nsamples for Y in Ys])
+    Y_ = np.hstack([Y] * nsamples for Y in Ys)
 
     return X, Y_
 
