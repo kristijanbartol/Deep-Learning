@@ -1,0 +1,1 @@
+return np.array([sigmoid(scores_shifted[i]) if Y_[i] == 0 else r_sigmoid(scores_shifted[i]) for i in range(N)])
