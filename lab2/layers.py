@@ -248,7 +248,6 @@ class ReLU(Layer):
             Returns:
               ndarray of shape (N, C, H, W).
         """
-        # ReLU function (multiplication method)
         self.output = inputs * (inputs > 0)
         return self.output
 
