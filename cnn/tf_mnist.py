@@ -2,8 +2,12 @@ import tensorflow as tf
 import tensorflow.contrib.layers as layers
 from tensorflow.examples.tutorials.mnist import input_data
 
-DATA_DIR = '/home/kristijan/FER/DU/lab2/datasets/MNIST/'
-SAVE_DIR = '/home/kristijan/FER/DU/lab2/source/out/'
+import numpy as np
+
+from nn import draw_conv_filters
+
+DATA_DIR = '/home/kristijan/FER/DU/cnn/datasets/MNIST/'
+SAVE_DIR = '/home/kristijan/FER/DU/cnn/source/out/'
 
 config = dict()
 config['max_epochs'] = 8
@@ -11,6 +15,17 @@ config['batch_size'] = 50
 config['save_dir'] = SAVE_DIR
 config['weight_decay'] = 1e-2
 config['lr_policy'] = {1: {'lr': 1e-1}, 3: {'lr': 1e-2}, 5: {'lr': 1e-3}, 7: {'lr': 1e-4}}
+
+
+def draw_conv_filters_proxy(epoch, step):
+    conv_w = np.array(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
+
+    class LayerProxy:
+        def __init__(self):
+            self.C = 3
+            self.weights = conv_w
+            self.name = 'tf_conv1'
+    draw_conv_filters(epoch=epoch, step=step, layer=LayerProxy(), save_dir=SAVE_DIR)
 
 
 def build_model(inputs, num_classes, config):
@@ -51,15 +66,22 @@ def train(sess, train_set, accuracy_f, train_f, loss_f, config):
     num_examples = train_set.images.shape[0]
     num_batches = num_examples // batch_size
 
-    for epoch in range(max_epoch):
+    np.set_printoptions(precision=2)
+
+    for epoch in range(1, max_epoch + 1):
         # TODO: how to permute the dataset after each epoch?
         for i in range(num_batches):
             batch = train_set.next_batch(batch_size)
             sess.run(train_f, feed_dict={x: batch[0], y: batch[1]})
-            if i % 10 == 0:
-                accuracy, loss = sess.run([accuracy_f, loss_f], feed_dict={x: batch[0], y: batch[1]})
-                print('epoch {}/{}, step {}/{}, cross-entropy loss {}, training accuracy {}'
-                      .format(epoch, max_epoch, i, num_batches, loss, accuracy))
+            if i % 5 == 0:
+                loss = sess.run(loss_f, feed_dict={x: batch[0], y: batch[1]})
+                print('epoch %d/%d, step %d/%d, batch loss = %.2f'
+                      % (epoch, max_epoch, i * batch_size, num_examples, loss))
+            #if i % 100 == 0:
+            #    draw_conv_filters_proxy(epoch, i)
+            if i > 0 and i % 50 == 0:
+                accuracy = sess.run(accuracy_f, feed_dict={x: batch[0], y: batch[1]})
+                print('Train accuracy = %.2f' % accuracy)
 
 
 mnist = input_data.read_data_sets(DATA_DIR, one_hot=True)
@@ -73,7 +95,7 @@ with tf.name_scope('loss'):
     cross_entropy_loss = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=y, logits=logits))
 
 with tf.name_scope('optimizer'):
-    train_op = tf.train.GradientDescentOptimizer(0.1).minimize(cross_entropy_loss)
+    train_op = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy_loss)
 
 with tf.name_scope('accuracy'):
     correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y, 1))
