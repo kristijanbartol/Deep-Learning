@@ -8,8 +8,8 @@ import nn
 
 import layers
 
-DATA_DIR = '/home/kristijan/FER/DU/lab2/datasets/MNIST/'
-SAVE_DIR = '/home/kristijan/FER/DU/lab2/source/out/'
+DATA_DIR = '/home/kristijan/FER/DU/cnn/datasets/MNIST/'
+SAVE_DIR = '/home/kristijan/FER/DU/cnn/source/out/'
 
 config = {}
 config['max_epochs'] = 8

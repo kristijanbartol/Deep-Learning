@@ -18,7 +18,7 @@ def unpickle(file):
     return dict
 
 
-DATA_DIR = '/home/kristijan/FER/DU/lab2/datasets/CIFAR10/'
+DATA_DIR = '/home/kristijan/FER/DU/cnn/datasets/CIFAR10/'
 
 img_height = 32
 img_width = 32

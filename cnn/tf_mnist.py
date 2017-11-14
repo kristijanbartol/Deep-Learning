@@ -5,11 +5,16 @@ from tensorflow.examples.tutorials.mnist import input_data
 DATA_DIR = '/home/kristijan/FER/DU/lab2/datasets/MNIST/'
 SAVE_DIR = '/home/kristijan/FER/DU/lab2/source/out/'
 
-batch_size = 50
+config = dict()
+config['max_epochs'] = 8
+config['batch_size'] = 50
+config['save_dir'] = SAVE_DIR
+config['weight_decay'] = 1e-2
+config['lr_policy'] = {1: {'lr': 1e-1}, 3: {'lr': 1e-2}, 5: {'lr': 1e-3}, 7: {'lr': 1e-4}}
 
 
-def build_model(inputs, num_classes):
-    weight_decay = 1e-2
+def build_model(inputs, num_classes, config):
+    weight_decay = config['weight_decay']
     conv1sz = 16
     conv2sz = 32
     fc1sz = 512
@@ -39,30 +44,44 @@ def build_model(inputs, num_classes):
     return logits_
 
 
+def train(sess, train_set, accuracy_f, train_f, loss_f, config):
+    batch_size = config['batch_size']
+    max_epoch = config['max_epochs']
+
+    num_examples = train_set.images.shape[0]
+    num_batches = num_examples // batch_size
+
+    for epoch in range(max_epoch):
+        # TODO: how to permute the dataset after each epoch?
+        for i in range(num_batches):
+            batch = train_set.next_batch(batch_size)
+            sess.run(train_f, feed_dict={x: batch[0], y: batch[1]})
+            if i % 10 == 0:
+                accuracy, loss = sess.run([accuracy_f, loss_f], feed_dict={x: batch[0], y: batch[1]})
+                print('epoch {}/{}, step {}/{}, cross-entropy loss {}, training accuracy {}'
+                      .format(epoch, max_epoch, i, num_batches, loss, accuracy))
+
+
 mnist = input_data.read_data_sets(DATA_DIR, one_hot=True)
 
 x = tf.placeholder(tf.float32, [None, 784])
 y = tf.placeholder(tf.float32, [None, 10])
 
-logits = build_model(x, 10)
+logits = build_model(x, 10, config)
 
 with tf.name_scope('loss'):
     cross_entropy_loss = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=y, logits=logits))
 
 with tf.name_scope('optimizer'):
-    optimizer = tf.train.GradientDescentOptimizer(0.1)
-    train_op = optimizer.minimize(cross_entropy_loss)
+    train_op = tf.train.GradientDescentOptimizer(0.1).minimize(cross_entropy_loss)
 
 with tf.name_scope('accuracy'):
     correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y, 1))
     correct_prediction = tf.cast(correct_prediction, tf.float32)
 accuracy = tf.reduce_mean(correct_prediction)
 
-with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
-    for i in range(20000):
-        batch = mnist.train.next_batch(batch_size)
-        sess.run([train_op, cross_entropy_loss], feed_dict={x: batch[0], y: batch[1]})
-        if i % 10 == 0:
-            train_accuracy = accuracy.eval(feed_dict={x: batch[0], y: batch[1]})
-            print('step %d, training accuracy %g' % (i, train_accuracy))
+with tf.Session() as session:
+    session.run(tf.global_variables_initializer())
+    train(session, mnist.train, accuracy, train_op, cross_entropy_loss, config)
+
+    print('test accuracy {}'.format(accuracy.eval(feed_dict={x: mnist.test.images, y: mnist.test.labels})))
