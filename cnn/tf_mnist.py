@@ -2,9 +2,7 @@ import tensorflow as tf
 import tensorflow.contrib.layers as layers
 from tensorflow.examples.tutorials.mnist import input_data
 
-import numpy as np
-
-from nn import draw_conv_filters
+from tf_cifar10_model import draw_conv_filters
 
 DATA_DIR = '/home/kristijan/FER/DU/cnn/datasets/MNIST/'
 SAVE_DIR = '/home/kristijan/FER/DU/cnn/source/out/'
@@ -14,18 +12,8 @@ config['max_epochs'] = 8
 config['batch_size'] = 50
 config['save_dir'] = SAVE_DIR
 config['weight_decay'] = 1e-2
+# TODO: add lr_policy for gradient descent optimizer
 config['lr_policy'] = {1: {'lr': 1e-1}, 3: {'lr': 1e-2}, 5: {'lr': 1e-3}, 7: {'lr': 1e-4}}
-
-
-def draw_conv_filters_proxy(epoch, step):
-    conv_w = np.array(tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
-
-    class LayerProxy:
-        def __init__(self):
-            self.C = 3
-            self.weights = conv_w
-            self.name = 'tf_conv1'
-    draw_conv_filters(epoch=epoch, step=step, layer=LayerProxy(), save_dir=SAVE_DIR)
 
 
 def build_model(inputs, num_classes, config):
@@ -66,8 +54,6 @@ def train(sess, train_set, accuracy_f, train_f, loss_f, config):
     num_examples = train_set.images.shape[0]
     num_batches = num_examples // batch_size
 
-    np.set_printoptions(precision=2)
-
     for epoch in range(1, max_epoch + 1):
         # TODO: how to permute the dataset after each epoch?
         for i in range(num_batches):
@@ -77,8 +63,10 @@ def train(sess, train_set, accuracy_f, train_f, loss_f, config):
                 loss = sess.run(loss_f, feed_dict={x: batch[0], y: batch[1]})
                 print('epoch %d/%d, step %d/%d, batch loss = %.2f'
                       % (epoch, max_epoch, i * batch_size, num_examples, loss))
-            #if i % 100 == 0:
-            #    draw_conv_filters_proxy(epoch, i)
+            if i % 100 == 0:
+                conv1_var = tf.contrib.framework.get_variables('conv1/weights:0')[0]
+                conv1_weights = conv1_var.eval(session=sess)
+                draw_conv_filters(0, 0, conv1_weights, SAVE_DIR)
             if i > 0 and i % 50 == 0:
                 accuracy = sess.run(accuracy_f, feed_dict={x: batch[0], y: batch[1]})
                 print('Train accuracy = %.2f' % accuracy)
