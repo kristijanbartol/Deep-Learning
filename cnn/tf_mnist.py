@@ -2,10 +2,10 @@ import tensorflow as tf
 import tensorflow.contrib.layers as layers
 from tensorflow.examples.tutorials.mnist import input_data
 
-from tf_cifar10_model import draw_conv_filters
+from tf_cifar10 import draw_conv_filters
 
 DATA_DIR = '/home/kristijan/FER/DU/cnn/datasets/MNIST/'
-SAVE_DIR = '/home/kristijan/FER/DU/cnn/source/out/'
+SAVE_DIR = '/home/kristijan/FER/DU/cnn/source/out/MNIST/'
 
 config = dict()
 config['max_epochs'] = 8
@@ -66,7 +66,7 @@ def train(sess, train_set, accuracy_f, train_f, loss_f, config):
             if i % 100 == 0:
                 conv1_var = tf.contrib.framework.get_variables('conv1/weights:0')[0]
                 conv1_weights = conv1_var.eval(session=sess)
-                draw_conv_filters(0, 0, conv1_weights, SAVE_DIR)
+                draw_conv_filters(epoch, i, conv1_weights, SAVE_DIR)
             if i > 0 and i % 50 == 0:
                 accuracy = sess.run(accuracy_f, feed_dict={x: batch[0], y: batch[1]})
                 print('Train accuracy = %.2f' % accuracy)
