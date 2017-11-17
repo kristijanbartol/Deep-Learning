@@ -17,6 +17,7 @@ config = dict()
 config['max_epochs'] = 30
 config['batch_size'] = 50
 config['weight_decay'] = 1e-2
+config['learning_rate'] = 1e-3
 
 
 def draw_conv_filters(epoch, step, weights, save_dir):
@@ -70,7 +71,7 @@ def plot_training_progress(save_dir, data):
              linewidth=linewidth, linestyle='-', label='learning_rate')
     ax3.legend(loc='upper left', fontsize=legend_size)
 
-    save_path = os.path.join(save_dir, 'training_plot.pdf')
+    save_path = os.path.join(save_dir, 'training_plot2.pdf')
     print('Plotting in: ', save_path)
     plt.savefig(save_path)
 
@@ -204,7 +205,7 @@ with tf.name_scope('loss'):
     loss = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=node_y, logits=logits))
 
 with tf.name_scope('optimizer'):
-    optimizer = tf.train.AdamOptimizer(1e-4)
+    optimizer = tf.train.AdamOptimizer(learning_rate=config['learning_rate'], beta1=0.9, beta2=0.999, epsilon=1e-8)
     train_op = optimizer.minimize(loss)
 
 # with tf.name_scope('confusion_matrix'):
@@ -221,7 +222,7 @@ with tf.Session() as sess:
     for epoch_num in range(1, num_epochs + 1):
         train_x, train_y = shuffle_data(train_x, train_y)
         num_batches = train_x.shape[0] // batch_size
-        for step in range(1, num_batches + 1):
+        for step in range(num_batches):
             offset = step * batch_size
             batch_x = np.array(train_x[offset:(offset + batch_size), ...])\
                 .reshape(-1, img_width * img_height * num_channels)
@@ -236,14 +237,14 @@ with tf.Session() as sess:
             ret_val = sess.run(run_ops, feed_dict=feed_dict)
             _, loss_val, logits_val = ret_val
             duration = time.time() - start_time
-            if step % 50 == 0:
+            if (step + 1) % 50 == 0:
                 sec_per_batch = float(duration)
                 format_str = 'epoch %d, step %d / %d, loss = %.2f (%.3f sec/batch)'
-                print(format_str % (epoch_num, step, num_batches, loss_val, sec_per_batch))
-            if step % 100 == 0:
+                print(format_str % (epoch_num, step + 1, num_batches, loss_val, sec_per_batch))
+            if (step + 1) % 100 == 0:
                 conv1_var = tf.contrib.framework.get_variables('conv1/weights:0')[0]
                 conv1_weights = conv1_var.eval(session=sess)
-                draw_conv_filters(epoch_num, step, conv1_weights, SAVE_DIR)
+                draw_conv_filters(epoch_num, step + 1, conv1_weights, SAVE_DIR)
 
         run_ops = [loss, accuracy]
         train_loss, train_acc = evaluate(run_ops, train_x, train_y)
@@ -254,6 +255,6 @@ with tf.Session() as sess:
         plot_data['valid_loss'] += [valid_loss]
         plot_data['train_acc'] += [train_acc]
         plot_data['valid_acc'] += [valid_acc]
-        plot_data['lr'] += [optimizer._lr]
+        plot_data['lr'] += [optimizer._lr_t.eval(session=sess)]
         plot_training_progress(SAVE_DIR, plot_data)
         print('\n')
