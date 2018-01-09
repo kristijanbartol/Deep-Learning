@@ -1,19 +1,17 @@
 import numpy as np
 
 conversations_path = 'data/selected_conversations.txt'
-movies_path = 'data/selected_movies.txt'
 
 
 class DataLoader:
 
-    def __init__(self, batch_size=1, sequence_length=5):
+    def __init__(self, batch_size=10):
         self.sorted_chars = []
         self.char2id = dict()
         self.id2char = dict()
         self.x = np.zeros(0)
 
         self.batch_size = batch_size
-        self.sequence_length = sequence_length
         self.num_batches = -1
         self.current_batch = 0
         self.minibatches = np.zeros(0)
@@ -47,17 +45,15 @@ class DataLoader:
         return ''.join(list(map(self.id2char.get, encoded_sequence)))
 
     def create_minibatches(self):
-        if self.batch_size * self.sequence_length > len(self.x):
-            print('Sequence is too short - number of batches is zero')
-        self.num_batches = int(len(self.x) / (self.batch_size * self.sequence_length))  # not all samples are included
+        self.num_batches = len(self.x) // self.batch_size  # not all samples are included
         current_idx = 0
         self.minibatches = []
         for i in range(self.num_batches):
             minibatch = ([], [])    # (batch_x, batch_y)
             for j in range(self.batch_size):
-                minibatch[0].append(self.x[current_idx:current_idx+self.sequence_length])
-                current_idx += self.sequence_length
-                minibatch[1].append(self.x[current_idx:current_idx+self.sequence_length])
+                minibatch[0].append(self.x[current_idx])
+                current_idx = (current_idx + 1) % self.x.shape[0]
+                minibatch[1].append(self.x[current_idx])
             self.minibatches.append(minibatch)
         self.minibatches = np.array(self.minibatches)
 
@@ -75,7 +71,7 @@ class DataLoader:
 
 
 if __name__ == '__main__':
-    data_loader = DataLoader(batch_size=4, sequence_length=3)
+    data_loader = DataLoader(batch_size=4)
     data_loader.preprocess(conversations_path)
     print(data_loader.encode('banana'))
     print(data_loader.decode(np.array([28, 5, 6, 5, 6, 5])))
