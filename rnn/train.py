@@ -8,13 +8,13 @@ from dataset import DataLoader
 conversations_path = 'data/selected_conversations.txt'
 generated_text_path = 'data/generated_text.txt'
 
-lr = 1e-2
+lr = 1e-3
 lr_coef = 2                 # coefficient for decrease current learning rate
 max_diverging_steps = 5     # diverging steps limit after which learning rate decreases by lr_coef
 
-batch_size = 1
+batch_size = 10
 max_epochs = 20
-sequence_length = 20
+sequence_length = 30
 hidden_size = 100
 
 

@@ -78,6 +78,7 @@ class DataLoader:
 
 
 if __name__ == '__main__':
+    # Testing
     data_loader = DataLoader(batch_size=4, sequence_length=5)
     data_loader.preprocess(conversations_path)
     print(data_loader.encode('banana'))

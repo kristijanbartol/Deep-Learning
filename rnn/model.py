@@ -26,11 +26,12 @@ class RNN:
         self.memory_U, self.memory_W, self.memory_V = np.zeros_like(self.U), np.zeros_like(self.W), np.zeros_like(self.V)
         self.memory_b, self.memory_c = np.zeros_like(self.b), np.zeros_like(self.c)
 
-    def rnn_step_forward(self, x, h_prev, U, W, b):
+    @staticmethod
+    def rnn_step_forward(x, h_prev, U, W, b):
         # A single time step forward of a recurrent neural network with a
         # hyperbolic tangent nonlinearity.
 
-        # x - input data (batch size x input dimension)
+        # x - input data (batch size x vocab size)
         # h_prev - previous hidden state (hidden size x hidden size)
         # U - input projection matrix (input dimension x hidden size)
         # W - hidden to hidden projection matrix (hidden size x hidden size)
@@ -122,19 +123,17 @@ class RNN:
 
         return np.dot(h, V) + c.T
 
-    def output(self, h):
+    def output(self, h, V, c):
         yhat = []
-        print(h.shape)
         for i in range(len(h)):
             yhat.append(RNN._output(h[i], self.V, self.c))
         return np.array(yhat)
 
-    @staticmethod
-    def output_loss_and_grads(h, V, c, y):
+    def output_loss_and_grads(self, h, V, c, y):
         # Calculate the loss of the network for each of the outputs
 
         # h - hidden states of the network for each time step.
-        #     the dimensionality of h is batch size x sequence length x hidden size (the initial state is irrelevant for the output)
+        #     the dimensionality of h is sequence length x batch size x hidden size (the initial state is irrelevant for the output)
         # V - the output projection matrix of dimension hidden size x vocabulary size
         # c - the output bias of dimension vocabulary size x 1
         # y - the true class distribution - a tensor of dimension
@@ -147,8 +146,9 @@ class RNN:
 
         #     where y might be a list or a dictionary.
 
-        o = RNN._output(np.swapaxes(h, 0, 1), V, c)           # V * h_t + c   (batch_size x sequence_size x vocab_size)
-        yhat = softmax(o)                                     # softmax(o_t)  (batch_size x sequence_size x vocab_size)
+        o = self.output(h, V, c)           # V * h_t + c   (sequence_size x batch_size x vocab_size)
+        yhat = softmax(o)                                     # softmax(o_t)  (sequence_size x batch_size x vocab_size)
+        yhat = np.swapaxes(yhat, 0, 1)
         loss = -1 / y.size * np.sum(y * np.log(yhat))         # (scalar)
         do = 1 / yhat.shape[1] * np.sum(yhat - y, axis=1)     # dL_do = yhat - y  (batch_size x vocab_size)
         dh = np.dot(do, V.T) + 0                      # dL_dh = V.T * dL_do + dL+1_h_t  (1 x vocab_size)
@@ -170,7 +170,7 @@ class RNN:
         return oh_v
 
     def generate_next(self, h):
-        return self.idx_to_oh(np.argmax(softmax(self._output([h], self.V, self.c)[0])))
+        return self.idx_to_oh(np.argmax(softmax(self._output(h, self.V, self.c))))
 
     def update(self, dU, dW, db, dV, dc, U, W, b, V, c, memory_U, memory_W, memory_b, memory_V, memory_c):
         # update memory matrices
