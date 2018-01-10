@@ -5,8 +5,9 @@ conversations_path = 'data/selected_conversations.txt'
 
 class DataLoader:
 
-    def __init__(self, batch_size=10):
+    def __init__(self, batch_size=10, sequence_length=5):
         self.sorted_chars = []
+        self.sequence_length = sequence_length
         self.char2id = dict()
         self.id2char = dict()
         self.x = np.zeros(0)
@@ -45,15 +46,21 @@ class DataLoader:
         return ''.join(list(map(self.id2char.get, encoded_sequence)))
 
     def create_minibatches(self):
-        self.num_batches = len(self.x) // self.batch_size  # not all samples are included
+        if self.sequence_length * self.batch_size > self.x.shape[0]:
+            print('sequence length * batch size > dataset size (number of batches is zero)')
+        # Note: not all samples are included
+        self.num_batches = len(self.x) // (self.sequence_length * self.batch_size)
         current_idx = 0
         self.minibatches = []
         for i in range(self.num_batches):
-            minibatch = ([], [])    # (batch_x, batch_y)
+            minibatch = ([], [])        # (batch_x, batch_y)
             for j in range(self.batch_size):
-                minibatch[0].append(self.x[current_idx])
-                current_idx = (current_idx + 1) % self.x.shape[0]
-                minibatch[1].append(self.x[current_idx])
+                minibatch[0].append(self.x[current_idx:current_idx+self.sequence_length])
+                current_idx += self.sequence_length
+                # skip whole overflowing batch (even though it shouldn't happen)
+                if current_idx + self.sequence_length >= self.x.shape[0]:
+                    break
+                minibatch[1].append(self.x[current_idx:current_idx+self.sequence_length])
             self.minibatches.append(minibatch)
         self.minibatches = np.array(self.minibatches)
 
@@ -67,14 +74,16 @@ class DataLoader:
         # handling batch pointer & reset
         # new_epoch is a boolean indicating if the batch pointer was reset
         # in this function call
-        return new_epoch, batch_x, batch_y
+        return new_epoch, np.array(batch_x), np.array(batch_y)
 
 
 if __name__ == '__main__':
-    data_loader = DataLoader(batch_size=4)
+    data_loader = DataLoader(batch_size=4, sequence_length=5)
     data_loader.preprocess(conversations_path)
     print(data_loader.encode('banana'))
     print(data_loader.decode(np.array([28, 5, 6, 5, 6, 5])))
     data_loader.create_minibatches()
-    print(data_loader.next_minibatch())
-    print(data_loader.next_minibatch())
+    print('first batch: {}'.format(data_loader.next_minibatch()[1:]))
+    print('second batch: {}'.format(data_loader.next_minibatch()[1:]))
+    print(data_loader.minibatches.shape)
+    print(data_loader.next_minibatch()[1].shape)

@@ -26,8 +26,7 @@ class RNN:
         self.memory_U, self.memory_W, self.memory_V = np.zeros_like(self.U), np.zeros_like(self.W), np.zeros_like(self.V)
         self.memory_b, self.memory_c = np.zeros_like(self.b), np.zeros_like(self.c)
 
-    @staticmethod
-    def rnn_step_forward(x, h_prev, U, W, b):
+    def rnn_step_forward(self, x, h_prev, U, W, b):
         # A single time step forward of a recurrent neural network with a
         # hyperbolic tangent nonlinearity.
 
@@ -37,12 +36,12 @@ class RNN:
         # W - hidden to hidden projection matrix (hidden size x hidden size)
         # b - bias of shape (hidden size x 1)
 
-        h_current = np.tanh(np.dot(h_prev, W) + np.dot(x, U) + b.T)
+        h_current = np.tanh(np.dot(h_prev, W) + np.dot(x, U) + b.T)     # (batch_size x hidden_size)
 
         # return the new hidden state and a tuple of values needed for the backward step
         return h_current, (h_current, h_prev, x)
 
-    def rnn_forward(self, x, h0, U, W, b):
+    def _rnn_forward(self, x, h0, U, W, b):
         # Full unroll forward of the recurrent neural network with a
         # hyperbolic tangent nonlinearity
 
@@ -52,15 +51,20 @@ class RNN:
         # W - hidden to hidden projection matrix (hidden size x hidden size)
         # b - bias of shape (hidden size x 1)
 
-        h = [copy.deepcopy(h0)]
+        h = []
+        h_current = copy.deepcopy(h0)
         cache = []
+        x_swapped = np.swapaxes(x, 0, 1)
         for i in range(self.sequence_length):
-            h_, cache_ = RNN.rnn_step_forward(x, h[-1], U, W, b)
-            h.append(h_)
+            h_current, cache_ = self.rnn_step_forward(x_swapped[i], h_current, U, W, b)
+            h.append(h_current)
             cache.append(cache_)
 
         # return the hidden states for the whole time series (T+1) and a tuple of values needed for the backward step
         return h, cache
+
+    def refresh_context(self, x, h0):
+        return self._rnn_forward(x, h0, self.U, self.W, self.b)[0][0]
 
     @staticmethod
     def rnn_step_backward(grad_next, cache):
@@ -69,16 +73,16 @@ class RNN:
 
         # grad_next - upstream gradient of the loss with respect to the next hidden state and current output
         # cache - cached information from the forward pass
-        # cache[0] <- h_t   (batch size x hidden size)
+        # cache[0] <- h_t   (1 x hidden size)
         # cache[1] <- h_t-1
-        # cache[2] <- x_t   (batch size x vocab size
+        # cache[2] <- x_t   (batch size x vocab size)
         # a <- argument of tanh
 
-        da = grad_next * (1 - np.square(cache[0]))
-        dh_prev = grad_next
-        dU = np.dot(cache[2].T, da)
-        dW = np.dot(cache[1].T, da)
-        db = da.T
+        da = grad_next * (1 - np.square(cache[0]))      # (batch_size x hidden_size)
+        dh_prev = grad_next                             # (batch_size x hidden_size)
+        dU = np.dot(cache[2].T, da)                     # (vocab_size x hidden_size)
+        dW = np.dot(cache[1].T, da)                     # (hidden_size x hidden_size)
+        db = da.T                                       # (hidden_size x batch_size)
 
         # compute and return gradients with respect to each parameter
         # HINT: you can use the chain rule to compute the derivative of the
@@ -92,28 +96,38 @@ class RNN:
         # hyperbolic tangent nonlinearity
 
         dh_ = copy.deepcopy(dh)
-        dU = None
-        dW = None
-        db = None
+        dU = np.zeros_like(self.U)
+        dW = np.zeros_like(self.W)
+        db = np.zeros_like(self.b)
 
         for i in range(self.sequence_length - 1, 0, -1):
-            dh_, dU, dW, db = RNN.rnn_step_backward(dh_, cache[i])
+            dh_, dU_, dW_, db_ = RNN.rnn_step_backward(dh_, cache[i])
+            dU += np.clip(dU_, -5, 5)
+            dW += np.clip(dW_, -5, 5)
+            db += np.sum(np.clip(db_, -5, 5), axis=1).reshape(-1, 1)
 
         # compute and return gradients with respect to each parameter
         # for the whole time series.
         # Why are we not computing the gradient with respect to inputs (x)?
 
-        return np.clip(dU, -5, 5), np.clip(dW, -5, 5), np.clip(db, -5, 5)
+        return dU, dW, db
 
     @staticmethod
-    def output(h, V, c):
+    def _output(h, V, c):
         # Calculate the output probabilities of the network
 
         # V - hidden_size x vocab_size
-        # h - hidden_size x batch_size
+        # h - batch_size x hidden_size
         # c - vocab_size x 1
 
         return np.dot(h, V) + c.T
+
+    def output(self, h):
+        yhat = []
+        print(h.shape)
+        for i in range(len(h)):
+            yhat.append(RNN._output(h[i], self.V, self.c))
+        return np.array(yhat)
 
     @staticmethod
     def output_loss_and_grads(h, V, c, y):
@@ -133,12 +147,13 @@ class RNN:
 
         #     where y might be a list or a dictionary.
 
-        o = RNN.output(h[:][-1], V, c)  # V * h_t + c
-        yhat = softmax(o)               # softmax(o_t)
-        loss = yhat - y                 # yhat - y_t
-        dh = np.dot(loss, V.T) + 0      # dL_dh = V.T * dL_do + dL+1_h_t
-        dV = np.dot(h[:][-1].T, loss)   # dL_dV = (yhat - y_t) * h_t.T
-        dc = loss.T                     # yhat - y_t
+        o = RNN._output(np.swapaxes(h, 0, 1), V, c)           # V * h_t + c   (batch_size x sequence_size x vocab_size)
+        yhat = softmax(o)                                     # softmax(o_t)  (batch_size x sequence_size x vocab_size)
+        loss = -1 / y.size * np.sum(y * np.log(yhat))         # (scalar)
+        do = 1 / yhat.shape[1] * np.sum(yhat - y, axis=1)     # dL_do = yhat - y  (batch_size x vocab_size)
+        dh = np.dot(do, V.T) + 0                      # dL_dh = V.T * dL_do + dL+1_h_t  (1 x vocab_size)
+        dV = np.dot(h[:][-1].T, do)                   # dL_dV = (yhat - y_t) * h_t.T    (hidden_size x vocab_size)
+        dc = 1 / do.T.shape[1] * np.sum(do.T, axis=1).reshape(-1, 1)      # yhat - y_t  (vocab_size x 1)
 
         # calculate the output (o) - unnormalized log probabilities of classes
         # calculate yhat - softmax of the output
@@ -149,13 +164,19 @@ class RNN:
 
         return loss, dh, dV, dc
 
+    def idx_to_oh(self, idx):
+        oh_v = np.zeros(self.vocab_size)
+        oh_v[idx] = 1
+        return oh_v
+
+    def generate_next(self, h):
+        return self.idx_to_oh(np.argmax(softmax(self._output([h], self.V, self.c)[0])))
+
     def update(self, dU, dW, db, dV, dc, U, W, b, V, c, memory_U, memory_W, memory_b, memory_V, memory_c):
         # update memory matrices
         # perform the Adagrad update of parameters
         memory_U += np.square(dU)
         memory_W += np.square(dW)
-        print(memory_b.shape)
-        print(db.shape)
         memory_b += np.square(db)
         memory_V += np.square(dV)
         memory_c += np.square(dc)
@@ -166,15 +187,11 @@ class RNN:
         V -= self.learning_rate / (self.small_const + np.sqrt(memory_V)) * dV
         c -= self.learning_rate / (self.small_const + np.sqrt(memory_c)) * dc
 
-        # return U, W, b, V, c
-
     def step(self, h0, x_oh, y_oh):
-        h, cache = self.rnn_forward(x_oh, h0, self.U, self.W, self.b)
+        h, cache = self._rnn_forward(x_oh, h0, self.U, self.W, self.b)
         loss, dh, dV, dc = self.output_loss_and_grads(h, self.V, self.c, y_oh)
         dU, dW, db = self.rnn_backward(dh, cache)
 
-        # self.U, self.W, self.b, self.V, self.c = self.update(dU, dW, db, dV, dc, self.U, self.W, self.b, self.V, self.c,
-        #                                                     self.memory_U, self.memory_W, self.memory_b, self.memory_V, self.memory_c)
         self.update(dU, dW, db, dV, dc, self.U, self.W, self.b, self.V, self.c,
                     self.memory_U, self.memory_W, self.memory_b, self.memory_V, self.memory_c)
 
